@@ -895,7 +895,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
   }
 
   bool get isBottomSide {
-    var last = (_layoutController._endsTree.lastKey())!;
+    var last = (_layoutController._endsTree.lastKey()) ?? 0;
     var lIn = _layoutController.getIndexCoordinate(last);
     return _layoutController.getIndexCoordinate(_endIndex)[1] == lIn[1];
   }
