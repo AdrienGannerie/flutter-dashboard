@@ -376,7 +376,7 @@ class _DashboardStackState<T extends DashboardItem>
           scroll();
         }
       } catch (e) {
-        rethrow;
+        //rethrow;
       }
     });
   }
