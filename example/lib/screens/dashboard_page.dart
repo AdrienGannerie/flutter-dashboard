@@ -8,13 +8,10 @@ import 'package:flutter/material.dart';
 
 class MySlotBackground extends SlotBackgroundBuilder<ColoredDashboardItem> {
   @override
-  Widget? buildBackground(BuildContext context, ColoredDashboardItem? item,
-      int x, int y, bool editing) {
+  Widget? buildBackground(BuildContext context, ColoredDashboardItem? item, int x, int y, bool editing) {
     if (item != null) {
       return Container(
-        decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)),
       );
     }
 
@@ -32,9 +29,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final ScrollController scrollController = ScrollController();
 
-  late var _itemController =
-      DashboardItemController<ColoredDashboardItem>.withDelegate(
-          itemStorageDelegate: storage);
+  late var _itemController = DashboardItemController<ColoredDashboardItem>.withDelegate(itemStorageDelegate: storage);
 
   bool refreshing = false;
 
@@ -43,8 +38,7 @@ class _DashboardPageState extends State<DashboardPage> {
   //var dummyItemController =
   //    DashboardItemController<ColoredDashboardItem>(items: []);
 
-  DashboardItemController<ColoredDashboardItem> get itemController =>
-      _itemController;
+  DashboardItemController<ColoredDashboardItem> get itemController => _itemController;
 
   int? slot;
 
@@ -81,8 +75,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   refreshing = true;
                 });
                 storage = MyItemStorage();
-                _itemController = DashboardItemController.withDelegate(
-                    itemStorageDelegate: storage);
+                _itemController = DashboardItemController.withDelegate(itemStorageDelegate: storage);
                 Future.delayed(const Duration(milliseconds: 150)).then((value) {
                   setState(() {
                     refreshing = false;
@@ -105,9 +98,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 itemController.isEditing = !itemController.isEditing;
                 setState(() {});
               },
-              icon: !itemController.isEditing
-                  ? const Icon(Icons.edit)
-                  : const Icon(Icons.check)),
+              icon: !itemController.isEditing ? const Icon(Icons.edit) : const Icon(Icons.check)),
         ],
       ),
       body: SafeArea(
@@ -119,9 +110,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 scrollController: scrollController,
                 shrinkToPlace: false,
                 slideToTop: true,
+                removeEmptyRows: true,
                 absorbPointer: false,
-                slotBackgroundBuilder: SlotBackgroundBuilder.withFunction(
-                    (context, item, x, y, editing) {
+                slotBackgroundBuilder: SlotBackgroundBuilder.withFunction((context, item, x, y, editing) {
                   return Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.black12, width: 0.5),
@@ -144,8 +135,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     color: Colors.transparent,
                     clipBehavior: Clip.antiAliasWithSaveLayer,
                     elevation: 5,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15))),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                 physics: const RangeMaintainingScrollPhysics(),
                 editModeSettings: EditModeSettings(
                     draggableOutside: false,
@@ -154,11 +144,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     resizeCursorSide: 15,
                     curve: Curves.easeOut,
                     duration: const Duration(milliseconds: 300),
-                    backgroundStyle: const EditModeBackgroundStyle(
-                        lineColor: Colors.black38,
-                        lineWidth: 0.5,
-                        dualLineHorizontal: false,
-                        dualLineVertical: false)),
+                    backgroundStyle:
+                        const EditModeBackgroundStyle(lineColor: Colors.black38, lineWidth: 0.5, dualLineHorizontal: false, dualLineVertical: false)),
                 itemBuilder: (ColoredDashboardItem item) {
                   var layout = item.layoutData;
 
@@ -174,9 +161,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         Container(
                           alignment: Alignment.center,
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                              color: item.color,
-                              borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: item.color, borderRadius: BorderRadius.circular(10)),
                           child: SizedBox(
                               width: double.infinity,
                               height: double.infinity,
@@ -186,14 +171,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                   "y: ${layout.startY}",
                                   "w: ${layout.width}",
                                   "h: ${layout.height}",
-                                  if (layout.minWidth != 1)
-                                    "minW: ${layout.minWidth}",
-                                  if (layout.minHeight != 1)
-                                    "minH: ${layout.minHeight}",
-                                  if (layout.maxWidth != null)
-                                    "maxW: ${layout.maxWidth}",
-                                  if (layout.maxHeight != null)
-                                    "maxH : ${layout.maxHeight}"
+                                  if (layout.minWidth != 1) "minW: ${layout.minWidth}",
+                                  if (layout.minHeight != 1) "minH: ${layout.minHeight}",
+                                  if (layout.maxWidth != null) "maxW: ${layout.maxWidth}",
+                                  if (layout.maxHeight != null) "maxH : ${layout.maxHeight}"
                                 ].join("\n")}",
                                 style: const TextStyle(color: Colors.white),
                               )),

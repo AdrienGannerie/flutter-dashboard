@@ -24,35 +24,41 @@ typedef DashboardItemBuilder<T extends DashboardItem> = Widget Function(T item);
 /// This controller is also used to add/delete widget and handle layout changes.
 class Dashboard<T extends DashboardItem> extends StatefulWidget {
   /// A list of widget arranged with hand or initially.
-  Dashboard({super.key,
-    required this.itemBuilder,
-    required this.dashboardItemController,
-    this.slotCount = 8,
-    this.scrollController,
-    this.physics,
-    this.dragStartBehavior,
-    this.scrollBehavior,
-    this.cacheExtend = 500,
-    this.verticalSpace = 8,
-    this.horizontalSpace = 8,
-    this.padding = const EdgeInsets.all(0),
-    this.shrinkToPlace = true,
-    this.slideToTop = true,
-    this.slotAspectRatio,
-    this.slotHeight,
-    EditModeSettings? editModeSettings,
-    this.textDirection = TextDirection.ltr,
-    this.errorPlaceholder,
-    this.loadingPlaceholder,
-    this.emptyPlaceholder,
-    this.absorbPointer = true,
-    this.animateEverytime = true,
-    this.itemStyle = const ItemStyle(),
-    this.scrollToAdded = true,
-    this.slotBackgroundBuilder})
-      : assert((slotHeight == null && slotAspectRatio == null) ||
-      !(slotHeight != null && slotAspectRatio != null)),
+  Dashboard(
+      {super.key,
+      required this.itemBuilder,
+      required this.dashboardItemController,
+      this.slotCount = 8,
+      this.scrollController,
+      this.physics,
+      this.dragStartBehavior,
+      this.scrollBehavior,
+      this.cacheExtend = 500,
+      this.verticalSpace = 8,
+      this.horizontalSpace = 8,
+      this.padding = const EdgeInsets.all(0),
+      this.shrinkToPlace = true,
+      this.slideToTop = true,
+      this.removeEmptyRows = false,
+      this.slotAspectRatio,
+      this.slotHeight,
+      EditModeSettings? editModeSettings,
+      this.textDirection = TextDirection.ltr,
+      this.errorPlaceholder,
+      this.loadingPlaceholder,
+      this.emptyPlaceholder,
+      this.absorbPointer = true,
+      this.animateEverytime = true,
+      this.itemStyle = const ItemStyle(),
+      this.scrollToAdded = true,
+      this.slotBackgroundBuilder})
+      : assert((slotHeight == null && slotAspectRatio == null) || !(slotHeight != null && slotAspectRatio != null)),
         editModeSettings = editModeSettings ?? EditModeSettings();
+
+  /// If [removeEmptyRows] is true, when edit mode is complete, the layout will
+  /// be compacted by removing empty rows and moving all items up.
+  /// This helps create a more condensed layout without empty spaces between items.
+  final bool removeEmptyRows;
 
   /// If [slotBackgroundBuilder] is not null, the background of the slots
   /// is drawn with the  [SlotBackgroundBuilder.build] method.
@@ -196,6 +202,7 @@ class Dashboard<T extends DashboardItem> extends StatefulWidget {
   final TextDirection textDirection;
 
   /// Each item is wrapped by a [Material]. Material's parameters can be
+   
   /// specified with [itemStyle].
   ///
   /// Look [Material] documentation for more.
@@ -205,8 +212,7 @@ class Dashboard<T extends DashboardItem> extends StatefulWidget {
   State<Dashboard<T>> createState() => _DashboardState<T>();
 }
 
-class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
-    with TickerProviderStateMixin {
+class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>> with TickerProviderStateMixin {
   ///
   @override
   void initState() {
@@ -234,8 +240,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
   GlobalKey myWidgetKey = GlobalKey();
 
   bool get hasDimensions {
-    final RenderBox? renderBox =
-    myWidgetKey.currentContext?.findRenderObject() as RenderBox?;
+    final RenderBox? renderBox = myWidgetKey.currentContext?.findRenderObject() as RenderBox?;
     // Checks if the renderBox is not null and has a non-zero size
     return renderBox != null && renderBox.hasSize;
   }
@@ -244,8 +249,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
 
   AsyncSnapshot? get _snap => widget.dashboardItemController._asyncSnap?.value;
 
-  bool get _withDelegate =>
-      widget.dashboardItemController.itemStorageDelegate != null;
+  bool get _withDelegate => widget.dashboardItemController.itemStorageDelegate != null;
 
   ///
   late _DashboardLayoutController<T> _layoutController;
@@ -288,6 +292,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
           animateEverytime: widget.animateEverytime,
           slideToTop: widget.slideToTop,
           shrinkToPlace: widget.shrinkToPlace,
+          removeEmptyRows: widget.removeEmptyRows,
           axis: Axis.vertical,
           itemController: widget.dashboardItemController,
           slotCount: widget.slotCount,
@@ -302,6 +307,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
           animateEverytime: widget.animateEverytime,
           slideToTop: widget.slideToTop,
           shrinkToPlace: widget.shrinkToPlace,
+          removeEmptyRows: widget.removeEmptyRows,
           axis: Axis.vertical,
           itemController: widget.dashboardItemController,
           slotCount: widget.slotCount,
@@ -314,22 +320,17 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
     if (widget.slotHeight != null) {
       h = widget.slotHeight!;
     } else if (widget.slotAspectRatio != null) {
-      h = _layoutController._viewportDelegate.resolvedConstrains.maxWidth /
-          widget.slotCount /
-          widget.slotAspectRatio!;
+      h = _layoutController._viewportDelegate.resolvedConstrains.maxWidth / widget.slotCount / widget.slotAspectRatio!;
     } else {
-      h = _layoutController._viewportDelegate.resolvedConstrains.maxWidth /
-          widget.slotCount;
+      h = _layoutController._viewportDelegate.resolvedConstrains.maxWidth / widget.slotCount;
     }
 
-    _layoutController._setSizes(
-        _layoutController._viewportDelegate.resolvedConstrains, h);
+    _layoutController._setSizes(_layoutController._viewportDelegate.resolvedConstrains, h);
 
     _offset = o;
 
     if (i) {
-      offset.applyViewportDimension(
-          _layoutController._viewportDelegate.constraints.maxHeight);
+      offset.applyViewportDimension(_layoutController._viewportDelegate.constraints.maxHeight);
     }
 
     if (!i) {
@@ -360,11 +361,9 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
   late double _maxExtend;
 
   ///
-  final GlobalKey<_DashboardStackState<T>> _stateKey =
-  GlobalKey<_DashboardStackState<T>>();
+  final GlobalKey<_DashboardStackState<T>> _stateKey = GlobalKey<_DashboardStackState<T>>();
 
-  final GlobalKey<ScrollableState> _scrollableKey =
-  GlobalKey<ScrollableState>();
+  final GlobalKey<ScrollableState> _scrollableKey = GlobalKey<ScrollableState>();
 
   bool scrollable = true;
 
@@ -378,8 +377,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
         (!_reloading || differentReload) &&
         _layoutController.slotCount != widget.slotCount &&
         _withDelegate &&
-        widget
-            .dashboardItemController.itemStorageDelegate!.layoutsBySlotCount) {
+        widget.dashboardItemController.itemStorageDelegate!.layoutsBySlotCount) {
       _reloading = true;
       _reloadFor = widget.slotCount;
       widget.dashboardItemController._items.clear();
@@ -398,6 +396,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
                 animateEverytime: widget.animateEverytime,
                 slideToTop: widget.slideToTop,
                 shrinkToPlace: widget.shrinkToPlace,
+                removeEmptyRows: widget.removeEmptyRows,
                 axis: Axis.vertical,
                 itemController: widget.dashboardItemController,
                 slotCount: widget.slotCount,
@@ -413,6 +412,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
               animateEverytime: widget.animateEverytime,
               slideToTop: widget.slideToTop,
               shrinkToPlace: widget.shrinkToPlace,
+              removeEmptyRows: widget.removeEmptyRows,
               axis: Axis.vertical,
               itemController: widget.dashboardItemController,
               slotCount: widget.slotCount,
@@ -426,11 +426,8 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
       if (_withDelegate) {
         if (_snap!.connectionState == ConnectionState.none) {
           _building = false;
-          return widget.errorPlaceholder
-              ?.call(_snap!.error!, _snap!.stackTrace!) ??
-              const SizedBox();
-        } else if (_snap!.connectionState == ConnectionState.waiting ||
-            _reloading) {
+          return widget.errorPlaceholder?.call(_snap!.error!, _snap!.stackTrace!) ?? const SizedBox();
+        } else if (_snap!.connectionState == ConnectionState.waiting || _reloading) {
           _building = false;
 
           return widget.loadingPlaceholder ??
@@ -448,8 +445,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
 
   Widget dashboardWidget(BoxConstraints constrains) {
     return Scrollable(
-        physics:
-        scrollable ? widget.physics : const NeverScrollableScrollPhysics(),
+        physics: scrollable ? widget.physics : const NeverScrollableScrollPhysics(),
         key: _scrollableKey,
         controller: widget.scrollController,
         semanticChildCount: widget.dashboardItemController._items.length,
@@ -471,7 +467,6 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
               _setNewOffset(o, constrains);
             },
             onScrollStateChange: (st) {
-
               SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
                 _moving = !st;
 
@@ -500,9 +495,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>>
 }
 
 class _ItemCurrentPositionTween extends Tween<_ItemCurrentPosition> {
-  _ItemCurrentPositionTween({required _ItemCurrentPosition begin,
-    required _ItemCurrentPosition end,
-    required this.onlyDimensions})
+  _ItemCurrentPositionTween({required _ItemCurrentPosition begin, required _ItemCurrentPosition end, required this.onlyDimensions})
       : super(begin: begin, end: end);
 
   bool onlyDimensions;
