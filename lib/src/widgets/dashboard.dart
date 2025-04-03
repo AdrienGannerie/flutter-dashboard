@@ -296,6 +296,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>> with 
           axis: Axis.vertical,
           itemController: widget.dashboardItemController,
           slotCount: widget.slotCount,
+          pushElementsOnConflict: widget.editModeSettings.pushElementsOnConflict,
           scrollToAdded: widget.scrollToAdded);
       _setOnNextFrame();
     }
@@ -311,6 +312,7 @@ class _DashboardState<T extends DashboardItem> extends State<Dashboard<T>> with 
           axis: Axis.vertical,
           itemController: widget.dashboardItemController,
           slotCount: widget.slotCount,
+          pushElementsOnConflict: widget.editModeSettings.pushElementsOnConflict,
           scrollToAdded: widget.scrollToAdded);
       _setOnNextFrame();
     }

@@ -231,6 +231,24 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
   }
 }
 
+/// Définit les différentes zones possibles lors du déplacement d'un élément
+enum DropZone {
+  /// Zone supérieure d'une case (insérer au-dessus)
+  top,
+
+  /// Zone inférieure d'une case (insérer en-dessous)
+  bottom,
+
+  /// Zone gauche d'une case (insérer à gauche)
+  left,
+
+  /// Zone droite d'une case (insérer à droite)
+  right,
+
+  /// Zone centrale d'une case (déplacer tous les éléments)
+  center
+}
+
 ///
 class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
   ///
@@ -258,6 +276,9 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
   late bool removeEmptyRows;
 
   late bool scrollToAdded;
+
+  /// Flag indicating if elements should be pushed on conflict
+  late bool pushElementsOnConflict;
 
   /// Flag indicating if we're in edit mode
   bool _isEditing = false;
@@ -696,6 +717,371 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
 
   bool? shrinkOnMove;
 
+  /// Finds all items that conflict with the specified layout
+  List<String> findConflictingItems(ItemLayout layout) {
+    List<String> conflictingItems = [];
+    Set<String> uniqueIds = {};
+
+    // Pour chaque position occupée par le nouveau layout
+    for (var y = layout.startY; y < layout.startY + layout.height; y++) {
+      for (var x = layout.startX; x < layout.startX + layout.width; x++) {
+        // Si x est hors limite horizontale, ignorer
+        if (x >= slotCount) continue;
+
+        // Vérifier si cette position est déjà occupée
+        int index = getIndex([x, y]);
+        String? existingItemId = _indexesTree[index];
+
+        // Si la position est occupée et que ce n'est pas par l'élément actuel
+        if (existingItemId != null && !uniqueIds.contains(existingItemId)) {
+          uniqueIds.add(existingItemId);
+          conflictingItems.add(existingItemId);
+        }
+      }
+    }
+
+    return conflictingItems;
+  }
+
+  /// Déterminer la zone visée dans une case occupée
+  DropZone determineDropZone(Offset relativePosition) {
+    final relativeX = relativePosition.dx;
+    final relativeY = relativePosition.dy;
+
+    const threshold = 0.25; // 25% des bords considérés comme zones spéciales
+
+    if (relativeY < threshold) return DropZone.top;
+    if (relativeY > 1 - threshold) return DropZone.bottom;
+    if (relativeX < threshold) return DropZone.left;
+    if (relativeX > 1 - threshold) return DropZone.right;
+
+    return DropZone.center;
+  }
+
+  /// Trouve la position relative dans un élément à partir d'un offset absolu
+  Offset getRelativePosition(Offset holdOffset, String targetItemId) {
+    var targetItem = _layouts![targetItemId];
+    if (targetItem == null) return const Offset(0.5, 0.5); // Centre par défaut
+
+    // Calculer la position de l'élément dans l'espace absolu
+    double left = targetItem.startX * slotEdge;
+    double top = targetItem.startY * verticalSlotEdge;
+    double width = targetItem.width * slotEdge;
+    double height = targetItem.height * verticalSlotEdge;
+
+    // Calculer la position relative
+    return Offset((holdOffset.dx - left) / width, (holdOffset.dy - top) / height);
+  }
+
+  /// Pushes conflicting items down to make room for the specified layout
+  bool pushItems(String itemId, ItemLayout layout, {Offset? holdOffset, String? targetItemId}) {
+    // Si nous avons une position de curseur et un élément cible, utiliser la détection de zone
+    if (holdOffset != null && targetItemId != null && targetItemId != itemId) {
+      // Déterminer la zone visée dans l'élément cible
+      Offset relativePosition = getRelativePosition(holdOffset, targetItemId);
+      DropZone dropZone = determineDropZone(relativePosition);
+
+      // Appliquer une stratégie spécifique selon la zone
+      return pushItemsWithZone(itemId, layout, targetItemId, dropZone);
+    }
+
+    // Comportement par défaut (pousser vers le bas)
+    return pushItemsDown(itemId, layout);
+  }
+
+  /// Déplace les éléments en fonction de la zone ciblée
+  bool pushItemsWithZone(String itemId, ItemLayout layout, String targetItemId, DropZone dropZone) {
+    var targetItem = _layouts![targetItemId];
+    if (targetItem == null) return false;
+
+    switch (dropZone) {
+      case DropZone.top:
+        // Insérer au-dessus de l'élément cible
+        return insertAboveItem(itemId, layout, targetItemId);
+      case DropZone.bottom:
+        // Insérer en-dessous de l'élément cible
+        return insertBelowItem(itemId, layout, targetItemId);
+      case DropZone.left:
+        // Essayer d'insérer à gauche si l'espace le permet
+        return insertLeftOfItem(itemId, layout, targetItemId);
+      case DropZone.right:
+        // Essayer d'insérer à droite si l'espace le permet
+        return insertRightOfItem(itemId, layout, targetItemId);
+      case DropZone.center:
+      default:
+        // Comportement normal: pousser vers le bas
+        return pushItemsDown(itemId, layout);
+    }
+  }
+
+  /// Insère un élément au-dessus d'un autre
+  bool insertAboveItem(String itemId, ItemLayout layout, String targetItemId) {
+    var targetItem = _layouts![targetItemId];
+    if (targetItem == null) return false;
+
+    // Créer un nouveau layout avec Y positionné juste au-dessus de l'élément cible
+    var newLayout = layout.copyWithStarts(startX: layout.startX, startY: targetItem.startY - layout.height);
+
+    // Si le nouvel Y est négatif, placer à 0 et pousser les autres éléments
+    if (newLayout.startY < 0) {
+      newLayout = newLayout.copyWithStarts(startY: 0);
+
+      // Pousser tous les éléments en conflit avec ce nouvel emplacement
+      List<String> conflictingItems = findConflictingItems(newLayout);
+      if (conflictingItems.isEmpty) {
+        _indexItem(newLayout, itemId);
+        return true;
+      }
+
+      // Déplacer tous les éléments en conflit vers le bas
+      int verticalShift = layout.height;
+      return moveItemsVertically(conflictingItems, verticalShift, itemId, newLayout);
+    } else {
+      // Vérifier s'il y a des conflits à cette nouvelle position
+      List<String> conflictingItems = findConflictingItems(newLayout);
+      if (conflictingItems.isEmpty) {
+        _indexItem(newLayout, itemId);
+        return true;
+      }
+
+      // S'il y a des conflits, essayer de pousser ces éléments vers le haut
+      int verticalShift = -layout.height;
+      return moveItemsVertically(conflictingItems, verticalShift, itemId, newLayout);
+    }
+  }
+
+  /// Insère un élément en-dessous d'un autre
+  bool insertBelowItem(String itemId, ItemLayout layout, String targetItemId) {
+    var targetItem = _layouts![targetItemId];
+    if (targetItem == null) return false;
+
+    // Créer un nouveau layout avec Y positionné juste en-dessous de l'élément cible
+    var newLayout = layout.copyWithStarts(startX: layout.startX, startY: targetItem.startY + targetItem.height);
+
+    // Vérifier s'il y a des conflits à cette nouvelle position
+    List<String> conflictingItems = findConflictingItems(newLayout);
+    if (conflictingItems.isEmpty) {
+      _indexItem(newLayout, itemId);
+      return true;
+    }
+
+    // S'il y a des conflits, pousser ces éléments vers le bas
+    int verticalShift = layout.height;
+    return moveItemsVertically(conflictingItems, verticalShift, itemId, newLayout);
+  }
+
+  /// Insère un élément à gauche d'un autre si l'espace le permet
+  bool insertLeftOfItem(String itemId, ItemLayout layout, String targetItemId) {
+    var targetItem = _layouts![targetItemId];
+    if (targetItem == null) return false;
+
+    // Vérifier si l'espace à gauche est suffisant
+    if (targetItem.startX < layout.width) {
+      // Pas assez d'espace à gauche, essayer en-dessous
+      return insertBelowItem(itemId, layout, targetItemId);
+    }
+
+    // Créer un nouveau layout positionné à gauche de l'élément cible
+    var newLayout = layout.copyWithStarts(startX: targetItem.startX - layout.width, startY: targetItem.startY);
+
+    // Vérifier s'il y a des conflits à cette nouvelle position
+    List<String> conflictingItems = findConflictingItems(newLayout);
+    if (conflictingItems.isEmpty) {
+      _indexItem(newLayout, itemId);
+      return true;
+    }
+
+    // S'il y a des conflits, essayer plutôt en-dessous
+    return insertBelowItem(itemId, layout, targetItemId);
+  }
+
+  /// Insère un élément à droite d'un autre si l'espace le permet
+  bool insertRightOfItem(String itemId, ItemLayout layout, String targetItemId) {
+    var targetItem = _layouts![targetItemId];
+    if (targetItem == null) return false;
+
+    // Vérifier si l'espace à droite est suffisant
+    if (targetItem.startX + targetItem.width + layout.width > slotCount) {
+      // Pas assez d'espace à droite, essayer en-dessous
+      return insertBelowItem(itemId, layout, targetItemId);
+    }
+
+    // Créer un nouveau layout positionné à droite de l'élément cible
+    var newLayout = layout.copyWithStarts(startX: targetItem.startX + targetItem.width, startY: targetItem.startY);
+
+    // Vérifier s'il y a des conflits à cette nouvelle position
+    List<String> conflictingItems = findConflictingItems(newLayout);
+    if (conflictingItems.isEmpty) {
+      _indexItem(newLayout, itemId);
+      return true;
+    }
+
+    // S'il y a des conflits, essayer plutôt en-dessous
+    return insertBelowItem(itemId, layout, targetItemId);
+  }
+
+  /// Déplace une liste d'éléments verticalement et place l'élément courant
+  bool moveItemsVertically(List<String> itemIds, int verticalShift, String currentItemId, ItemLayout currentLayout) {
+    // Mémoriser les positions actuelles pour pouvoir les restaurer en cas d'échec
+    Map<String, ItemLayout> originalLayouts = {};
+    for (var id in itemIds) {
+      var item = _layouts![id];
+      if (item != null) {
+        originalLayouts[id] = item.origin;
+      }
+    }
+
+    // Supprimer temporairement les éléments en conflit des index
+    for (var id in itemIds) {
+      var item = _layouts![id];
+      if (item != null) {
+        _removeFromIndexes(item.origin, id);
+      }
+    }
+
+    // Placer l'élément courant
+    _indexItem(currentLayout, currentItemId);
+
+    // Repositionner les éléments en conflit
+    bool allPlaced = true;
+    for (var id in itemIds) {
+      var item = _layouts![id];
+      if (item == null) continue;
+
+      var newLayout = item.origin.copyWithStarts(startX: item.startX, startY: item.startY + verticalShift);
+
+      var success = tryPushAndMount(id, newLayout);
+      if (!success) {
+        allPlaced = false;
+        break;
+      }
+    }
+
+    if (!allPlaced) {
+      // Si un placement a échoué, restaurer les positions d'origine
+      _removeFromIndexes(currentLayout, currentItemId);
+
+      for (var entry in originalLayouts.entries) {
+        if (_layouts!.containsKey(entry.key)) {
+          _indexItem(entry.value, entry.key);
+        }
+      }
+
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Méthode originale renommée pour pousser tous les éléments vers le bas
+  bool pushItemsDown(String itemId, ItemLayout layout) {
+    // Trouver les éléments en conflit
+    List<String> conflictingItems = findConflictingItems(layout);
+    if (conflictingItems.isEmpty) return true;
+
+    // Calcul du déplacement vertical nécessaire (hauteur de l'élément à placer)
+    int verticalShift = layout.height;
+
+    // Pour chaque élément en conflit, déplacer vers le bas
+    for (var conflictId in conflictingItems) {
+      var conflictItem = _layouts![conflictId];
+      if (conflictItem == null) continue;
+
+      // Créer un nouveau layout avec position Y augmentée
+      var newLayout = conflictItem.origin.copyWithStarts(startX: conflictItem.startX, startY: conflictItem.startY + verticalShift);
+
+      // Supprimer l'élément de sa position actuelle
+      _removeFromIndexes(conflictItem.origin, conflictId);
+
+      // Essayer de placer l'élément à sa nouvelle position
+      // Si d'autres éléments sont en conflit, ils seront également déplacés récursivement
+      var success = tryPushAndMount(conflictId, newLayout);
+      if (!success) {
+        // Si le déplacement échoue, remettre tous les éléments en place et annuler
+        mountItems(); // Réinitialiser la disposition
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// Attempts to mount an item at a specific position, pushing other items if necessary
+  bool tryPushAndMount(String id, ItemLayout layout) {
+    // Vérifier si le layout dépasse des limites horizontales
+    if (layout.startX + layout.width > slotCount) {
+      if (layout.minWidth < layout.width) {
+        // Réduire la largeur si possible
+        var newLayout = layout.copyWithDimension(width: slotCount - layout.startX);
+        return tryPushAndMount(id, newLayout);
+      } else {
+        return false; // Impossible de placer l'élément
+      }
+    }
+
+    // Trouver les éléments en conflit
+    List<String> conflictingItems = findConflictingItems(layout);
+
+    if (conflictingItems.isEmpty) {
+      // Aucun conflit, placer directement
+      _indexItem(layout, id);
+      return true;
+    } else {
+      // Déplacer les éléments en conflit
+      int verticalShift = layout.height;
+
+      // Mémoriser les positions actuelles pour pouvoir les restaurer en cas d'échec
+      Map<String, ItemLayout> originalLayouts = {};
+      for (var conflictId in conflictingItems) {
+        var conflictItem = _layouts![conflictId];
+        if (conflictItem != null) {
+          originalLayouts[conflictId] = conflictItem.origin;
+        }
+      }
+
+      // Supprimer temporairement les éléments en conflit des index
+      for (var conflictId in conflictingItems) {
+        var conflictItem = _layouts![conflictId];
+        if (conflictItem != null) {
+          _removeFromIndexes(conflictItem.origin, conflictId);
+        }
+      }
+
+      // Placer l'élément courant
+      _indexItem(layout, id);
+
+      // Repositionner les éléments en conflit
+      bool allPlaced = true;
+      for (var conflictId in conflictingItems) {
+        var conflictItem = _layouts![conflictId];
+        if (conflictItem == null) continue;
+
+        var newLayout = conflictItem.origin.copyWithStarts(startX: conflictItem.startX, startY: conflictItem.startY + verticalShift);
+
+        var success = tryPushAndMount(conflictId, newLayout);
+        if (!success) {
+          allPlaced = false;
+          break;
+        }
+      }
+
+      if (!allPlaced) {
+        // Si un placement a échoué, restaurer les positions d'origine
+        _removeFromIndexes(layout, id);
+
+        for (var entry in originalLayouts.entries) {
+          if (_layouts!.containsKey(entry.key)) {
+            _indexItem(entry.value, entry.key);
+          }
+        }
+
+        return false;
+      }
+
+      return true;
+    }
+  }
+
   ///
   ItemLayout? tryMount(int value, ItemLayout itemLayout) {
     var shrinkToPlaceL = shrinkOnMove ?? shrinkToPlace;
@@ -926,6 +1312,7 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
     required bool animateEverytime,
     required bool scrollToAdded,
     bool? shrinkOnMove,
+    bool? pushElementsOnConflict,
   }) {
     this.shrinkToPlace = shrinkToPlace;
     this.slideToTop = slideToTop;
@@ -938,6 +1325,7 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
     this.animateEverytime = animateEverytime;
     _isAttached = true;
     this.scrollToAdded = scrollToAdded;
+    this.pushElementsOnConflict = pushElementsOnConflict ?? false;
     _layouts ??= <String, _ItemCurrentLayout>{};
     _layouts!.clear();
 

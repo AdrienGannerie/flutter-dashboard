@@ -213,6 +213,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                 physics: const RangeMaintainingScrollPhysics(),
                 editModeSettings: EditModeSettings(
+                    pushElementsOnConflict: true,
                     draggableOutside: false,
                     paintBackgroundLines: false,
                     autoScroll: true,

@@ -1,11 +1,7 @@
 part of '../dashboard_base.dart';
 
 class _ItemCurrentPosition {
-  _ItemCurrentPosition(
-      {required this.height,
-      required this.width,
-      required this.y,
-      required this.x});
+  _ItemCurrentPosition({required this.height, required this.width, required this.y, required this.x});
 
   double width, height, x, y;
 
@@ -14,26 +10,15 @@ class _ItemCurrentPosition {
   double get endY => y + height;
 
   _ItemCurrentPosition operator +(_ItemCurrentPosition other) {
-    return _ItemCurrentPosition(
-        height: height + other.height,
-        width: width + other.width,
-        y: y + other.y,
-        x: x + other.x);
+    return _ItemCurrentPosition(height: height + other.height, width: width + other.width, y: y + other.y, x: x + other.x);
   }
 
   _ItemCurrentPosition operator *(double multiplier) {
-    return _ItemCurrentPosition(
-        height: height * multiplier,
-        width: width * multiplier,
-        y: y * multiplier,
-        x: x * multiplier);
+    return _ItemCurrentPosition(height: height * multiplier, width: width * multiplier, y: y * multiplier, x: x * multiplier);
   }
 
   bool equal(_ItemCurrentPosition other) {
-    return x == other.x &&
-        y == other.y &&
-        width == other.width &&
-        height == other.height;
+    return x == other.x && y == other.y && width == other.width && height == other.height;
   }
 
   @override
@@ -61,10 +46,7 @@ class _Resizing extends _Change {
 
   @override
   ItemLayout back(ItemLayout layout) {
-    int x = layout.startX,
-        y = layout.startY,
-        w = layout.width,
-        h = layout.height;
+    int x = layout.startX, y = layout.startY, w = layout.width, h = layout.height;
     if (direction == AxisDirection.left) {
       x -= 1;
       w += 1;
@@ -133,8 +115,7 @@ class _Resize {
   late Offset offsetDifference;
   late _ItemCurrentPosition positionDifference;
 
-  void adjustResizeOffset(
-      double slotEdge, double verticalSlotEdge, _ItemCurrentPosition difPos) {
+  void adjustResizeOffset(double slotEdge, double verticalSlotEdge, _ItemCurrentPosition difPos) {
     Offset? difOffset;
     if (resize.increment) {
       if (resize.direction == AxisDirection.left) {
@@ -218,10 +199,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
         "\n origin: ($origin)";
   }
 
-  _ItemCurrentPosition _currentPosition(
-      {required _ViewportDelegate viewportDelegate,
-      required double slotEdge,
-      required double verticalSlotEdge}) {
+  _ItemCurrentPosition _currentPosition({required _ViewportDelegate viewportDelegate, required double slotEdge, required double verticalSlotEdge}) {
     var leftPad = isLeftSide ? 0.0 : viewportDelegate.crossAxisSpace / 2;
     var rightPad = isRightSide ? 0.0 : viewportDelegate.crossAxisSpace / 2;
     var topPad = isTopSide ? 0.0 : viewportDelegate.mainAxisSpace / 2;
@@ -229,9 +207,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
     return _ItemCurrentPosition(
         height: height * verticalSlotEdge - topPad - bottomPad,
         width: width * slotEdge - rightPad - leftPad,
-        y: ((startY * (verticalSlotEdge))) +
-            viewportDelegate.padding.top +
-            topPad,
+        y: ((startY * (verticalSlotEdge))) + viewportDelegate.padding.top + topPad,
         x: (startX * slotEdge) + viewportDelegate.padding.left + leftPad);
   }
 
@@ -284,8 +260,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
     var result = _ResizeMoveResult();
 
-    var itemPositionDifference =
-        _ItemCurrentPosition(height: 0, width: 0, y: 0, x: 0);
+    var itemPositionDifference = _ItemCurrentPosition(height: 0, width: 0, y: 0, x: 0);
 
     if (holdDirections.contains(AxisDirection.left)) {
       _Resizing? resizing;
@@ -298,8 +273,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
       var res = tryResize(resizing, onChange);
       if (res != null) {
-        itemPositionDifference =
-            _saveResizeResult(res, itemPositionDifference, result);
+        itemPositionDifference = _saveResizeResult(res, itemPositionDifference, result);
         onChange(id);
       } else {
         var dx = _clampDifLeft(difference.dx);
@@ -317,8 +291,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
       }
       var res = tryResize(resizing, onChange);
       if (res != null) {
-        itemPositionDifference =
-            _saveResizeResult(res, itemPositionDifference, result);
+        itemPositionDifference = _saveResizeResult(res, itemPositionDifference, result);
         onChange(id);
       } else {
         var dy = _clampDifTop(difference.dy);
@@ -372,11 +345,9 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
     return result;
   }
 
-  _ItemCurrentPosition _saveResizeResult(_Resize res,
-      _ItemCurrentPosition itemPositionDifference, _ResizeMoveResult result) {
+  _ItemCurrentPosition _saveResizeResult(_Resize res, _ItemCurrentPosition itemPositionDifference, _ResizeMoveResult result) {
     save();
-    res.adjustResizeOffset(
-        _slotEdge, _verticalSlotEdge, itemPositionDifference);
+    res.adjustResizeOffset(_slotEdge, _verticalSlotEdge, itemPositionDifference);
     result.startDifference += res.offsetDifference;
     result.isChanged = true;
     return res.positionDifference;
@@ -392,23 +363,19 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
       if (startX == 0) {
         return null;
       }
-      sideIndexes = _layoutController.getItemIndexes(ItemLayout(
-          startX: startX - 1, startY: startY, width: 1, height: height));
+      sideIndexes = _layoutController.getItemIndexes(ItemLayout(startX: startX - 1, startY: startY, width: 1, height: height));
     } else if (direction == AxisDirection.right) {
       if ((startX + width) >= _layoutController.slotCount) {
         return null;
       }
-      sideIndexes = _layoutController.getItemIndexes(ItemLayout(
-          startX: startX + width, startY: startY, width: 1, height: height));
+      sideIndexes = _layoutController.getItemIndexes(ItemLayout(startX: startX + width, startY: startY, width: 1, height: height));
     } else if (direction == AxisDirection.up) {
       if (startY == 0) {
         return null;
       }
-      sideIndexes = _layoutController.getItemIndexes(ItemLayout(
-          startX: startX, startY: startY - 1, width: width, height: 1));
+      sideIndexes = _layoutController.getItemIndexes(ItemLayout(startX: startX, startY: startY - 1, width: width, height: 1));
     } else {
-      sideIndexes = _layoutController.getItemIndexes(ItemLayout(
-          startX: startX, startY: startY + height, width: width, height: 1));
+      sideIndexes = _layoutController.getItemIndexes(ItemLayout(startX: startX, startY: startY + height, width: width, height: 1));
     }
 
     for (var i in sideIndexes) {
@@ -487,14 +454,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
   void _backResize(_Change change) {
     var res = change.back(ItemLayout(
-        startX: startX,
-        startY: startY,
-        width: width,
-        height: height,
-        minHeight: minHeight,
-        minWidth: minWidth,
-        maxWidth: maxWidth,
-        maxHeight: maxHeight));
+        startX: startX, startY: startY, width: width, height: height, minHeight: minHeight, minWidth: minWidth, maxWidth: maxWidth, maxHeight: maxHeight));
 
     _startX = res.startX;
     _startY = res.startY;
@@ -522,15 +482,13 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
         return null;
       } else if (lSideItems.isEmpty) {
         if (direction == AxisDirection.left) {
-          if ((maxWidth == null || width < maxWidth!) &&
-              width < _layoutController.slotCount) {
+          if ((maxWidth == null || width < maxWidth!) && width < _layoutController.slotCount) {
             _startX = startX - 1;
             _width = width + 1;
             return _Resize(resize);
           }
         } else if (direction == AxisDirection.right) {
-          if ((maxWidth == null || width < maxWidth!) &&
-              width < _layoutController.slotCount) {
+          if ((maxWidth == null || width < maxWidth!) && width < _layoutController.slotCount) {
             _width = width + 1;
             return _Resize(resize);
           }
@@ -573,15 +531,13 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
         _Resize? result;
 
         if (direction == AxisDirection.left) {
-          if ((maxWidth == null || width < maxWidth!) &&
-              width < _layoutController.slotCount) {
+          if ((maxWidth == null || width < maxWidth!) && width < _layoutController.slotCount) {
             _startX = startX - 1;
             _width = width + 1;
             result = _Resize(resize, indirectResizes: indirectResizing);
           }
         } else if (direction == AxisDirection.right) {
-          if ((maxWidth == null || width < maxWidth!) &&
-              width < _layoutController.slotCount) {
+          if ((maxWidth == null || width < maxWidth!) && width < _layoutController.slotCount) {
             _width = width + 1;
             result = _Resize(resize, indirectResizes: indirectResizing);
           }
@@ -660,26 +616,67 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
   List<int>? _originSize;
 
-  _ResizeMoveResult? _tryTransformFor(
-      int newStartX, int newStartY, Offset newTransform) {
-    var o = ItemLayout(
-        startX: startX, startY: startY, width: width, height: height);
+  _ResizeMoveResult? _tryTransformFor(int newStartX, int newStartY, Offset newTransform) {
+    var o = ItemLayout(startX: startX, startY: startY, width: width, height: height);
 
     _layoutController._removeFromIndexes(o, id);
 
     var i = _layoutController.getIndex([newStartX, newStartY]);
 
+    // Vérifier si la position est occupée
     if (_layoutController._indexesTree.containsKey(i)) {
+      // Si le mode de déplacement avec poussée est activé, essayer de pousser les éléments en conflit
+      if (_layoutController.pushElementsOnConflict) {
+        var proposedLayout = ItemLayout(
+            startX: newStartX,
+            startY: newStartY,
+            width: _originSize![0],
+            height: _originSize![1],
+            maxHeight: maxHeight,
+            maxWidth: maxWidth,
+            minWidth: minWidth,
+            minHeight: minHeight);
+
+        // Récupérer l'ID de l'élément à cette position pour déterminer la zone de drop
+        String? targetItemId = _layoutController._indexesTree[i];
+
+        // Calculer la position absolue du curseur
+        Offset holdOffsetAbsolute = Offset(newStartX * _slotEdge, newStartY * _verticalSlotEdge);
+
+        // Essayer de pousser les éléments qui sont en conflit
+        bool success = _layoutController.pushItems(id, proposedLayout, holdOffset: holdOffsetAbsolute, targetItemId: targetItemId);
+
+        if (success) {
+          // Si la poussée a réussi, mettre à jour la position actuelle
+          var xDif = newStartX - startX;
+          var yDif = newStartY - startY;
+          _startX = newStartX;
+          _startY = newStartY;
+          _width = _originSize![0];
+          _height = _originSize![1];
+          var dif = Offset(xDif * _slotEdge, yDif * _verticalSlotEdge);
+
+          if (_transform == null) {
+            _transform = ValueNotifier(newTransform - dif);
+            notifyListeners();
+          } else {
+            _transform!.value = newTransform - dif;
+          }
+
+          save();
+          _onTransformProcess = false;
+
+          return _ResizeMoveResult()
+            ..isChanged = true
+            ..startDifference = dif;
+        }
+      }
+
+      // Si pushElementsOnConflict est désactivé ou si la poussée a échoué,
+      // remettre l'élément à sa position initiale
       _layoutController._indexItem(
           ItemLayout(
-              startX: startX,
-              startY: startY,
-              width: width,
-              height: height,
-              minHeight: minHeight,
-              minWidth: minWidth,
-              maxWidth: maxWidth,
-              maxHeight: maxHeight),
+              startX: startX, startY: startY, width: width, height: height, minHeight: minHeight, minWidth: minWidth, maxWidth: maxWidth, maxHeight: maxHeight),
           id);
       return null;
     }
@@ -697,10 +694,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
             minHeight: minHeight));
 
     if (nLayout != null) {
-      var c = o.startX != nLayout.startX ||
-          o.startY != nLayout.startY ||
-          o.width != nLayout.width ||
-          o.height != nLayout.height;
+      var c = o.startX != nLayout.startX || o.startY != nLayout.startY || o.width != nLayout.width || o.height != nLayout.height;
       var xDif = nLayout.startX - startX;
       var yDif = nLayout.startY - startY;
       _startX = nLayout.startX;
@@ -728,14 +722,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
     } else {
       _layoutController._indexItem(
           ItemLayout(
-              startX: startX,
-              startY: startY,
-              width: width,
-              height: height,
-              minHeight: minHeight,
-              minWidth: minWidth,
-              maxWidth: maxWidth,
-              maxHeight: maxHeight),
+              startX: startX, startY: startY, width: width, height: height, minHeight: minHeight, minWidth: minWidth, maxWidth: maxWidth, maxHeight: maxHeight),
           id);
     }
     return null;
@@ -753,8 +740,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
     }
   }
 
-  _ResizeMoveResult? _transformUpdate(
-      Offset offsetDifference, double scrollDifference, Offset holdOffset) {
+  _ResizeMoveResult? _transformUpdate(Offset offsetDifference, double scrollDifference, Offset holdOffset) {
     if (_onTransformProcess) return null;
     _onTransformProcess = true;
 
@@ -762,17 +748,12 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
     var on = newTransform + holdOffset;
 
-    var holdX = ((on.dx / _slotEdge).floor() + origin.startX)
-        .clamp(0, _layoutController.slotCount - 1);
+    var holdX = ((on.dx / _slotEdge).floor() + origin.startX).clamp(0, _layoutController.slotCount - 1);
 
-    var holdY =
-        ((on.dy / _verticalSlotEdge).floor() + origin.startY).clamp(0, 4294967296);
+    var holdY = ((on.dy / _verticalSlotEdge).floor() + origin.startY).clamp(0, 4294967296);
 
-    var newStartX = ((newTransform.dx / _slotEdge).floor() + origin.startX)
-        .clamp(0, _layoutController.slotCount - 1);
-    var newStartY =
-        ((newTransform.dy / _verticalSlotEdge).floor() + origin.startY)
-            .clamp(0, 4294967296);
+    var newStartX = ((newTransform.dx / _slotEdge).floor() + origin.startX).clamp(0, _layoutController.slotCount - 1);
+    var newStartY = ((newTransform.dy / _verticalSlotEdge).floor() + origin.startY).clamp(0, 4294967296);
 
     var haveLeft = newStartX > 0;
     var haveRight = newStartX < _layoutController.slotCount - 1;
@@ -780,21 +761,17 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
     var slotIndex = _layoutController.getIndex([newStartX, newStartY]);
 
-    final holdItem = _layoutController
-        ._indexesTree[_layoutController.getIndex([holdX, holdY])];
+    final holdItem = _layoutController._indexesTree[_layoutController.getIndex([holdX, holdY])];
 
     if (holdItem != null && holdItem != id) {
       final holdingItem = _layoutController._layouts![holdItem];
 
       if (holdingItem != null) {
-        var hO = Offset(holdingItem.startX * _slotEdge,
-            (holdingItem.startY * _verticalSlotEdge));
+        var hO = Offset(holdingItem.startX * _slotEdge, (holdingItem.startY * _verticalSlotEdge));
 
-        var offsetFromHold =
-            Offset(startX * _slotEdge, (startY * _verticalSlotEdge)) + on - hO;
+        var offsetFromHold = Offset(startX * _slotEdge, (startY * _verticalSlotEdge)) + on - hO;
 
-        var holdWH = Offset(holdingItem.width * _slotEdge,
-            (holdingItem.height * _verticalSlotEdge));
+        var holdWH = Offset(holdingItem.width * _slotEdge, (holdingItem.height * _verticalSlotEdge));
 
         if (offsetFromHold.dx > 20 && offsetFromHold.dy > 20) {
           final notRight = offsetFromHold.dx < holdWH.dx - 20;
@@ -824,12 +801,10 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
           _layoutController.getIndex([newStartX, newStartY - 1]),
 
           /// top - left
-          if (haveLeft)
-            _layoutController.getIndex([newStartX - 1, newStartY - 1]),
+          if (haveLeft) _layoutController.getIndex([newStartX - 1, newStartY - 1]),
 
           /// top - right
-          if (haveRight)
-            _layoutController.getIndex([newStartX + 1, newStartY - 1]),
+          if (haveRight) _layoutController.getIndex([newStartX + 1, newStartY - 1]),
         ],
 
         if (haveLeft) ...[
@@ -914,14 +889,7 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
     // _saveToEditSession();
     _layoutController._reIndexItem(
         ItemLayout(
-            startX: startX,
-            startY: startY,
-            width: width,
-            height: height,
-            minWidth: minWidth,
-            maxWidth: maxWidth,
-            maxHeight: maxHeight,
-            minHeight: minHeight),
+            startX: startX, startY: startY, width: width, height: height, minWidth: minWidth, maxWidth: maxWidth, maxHeight: maxHeight, minHeight: minHeight),
         id);
     _change = true;
   }
@@ -1013,13 +981,6 @@ class _ItemCurrentLayout extends ChangeNotifier implements ItemLayout {
 
   ItemLayout asLayout() {
     return ItemLayout(
-        startX: startX,
-        startY: startY,
-        width: width,
-        height: height,
-        minHeight: minHeight,
-        minWidth: minWidth,
-        maxWidth: maxWidth,
-        maxHeight: maxHeight);
+        startX: startX, startY: startY, width: width, height: height, minHeight: minHeight, minWidth: minWidth, maxWidth: maxWidth, maxHeight: maxHeight);
   }
 }
