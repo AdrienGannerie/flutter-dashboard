@@ -43,13 +43,16 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
 
   /// Users can only edit the layout when [isEditing] is true.
   /// The [isEditing] does not have to be true to add or delete items.
-  ///
-  /// Use as setter to change [isEditing] value.
   bool get isEditing => _layoutController?.isEditing ?? false;
 
-  /// Change editing status.
-  set isEditing(bool value) {
-    _layoutController!.isEditing = value;
+  /// Vérifie s'il y a des modifications en attente
+  bool get hasPendingChanges => _layoutController?.hasPendingChanges ?? false;
+
+  /// Starts the edit mode
+  void startEditing() {
+    if (_layoutController != null && !isEditing) {
+      _layoutController!._startEditing();
+    }
   }
 
   /// Add new item to Dashboard.
@@ -69,7 +72,12 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
     if (_isAttached) {
       _items[item.identifier] = item;
       _layoutController!.add(item, mountToTop: mountToTop, duration: duration, curve: curve);
-      itemStorageDelegate?._onItemsAdded([_getItemWithLayout(item.identifier)], _layoutController!.slotCount);
+
+      // Ne pas appeler le delegate immédiatement si en mode édition
+      if (!isEditing) {
+        itemStorageDelegate?._onItemsAdded([_getItemWithLayout(item.identifier)], _layoutController!.slotCount);
+      }
+      // Sinon le delegate sera appelé lors de la confirmation des changements
     } else {
       throw Exception("Not Attached");
     }
@@ -92,7 +100,12 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
     if (_isAttached) {
       _items.addAll(items.asMap().map((key, value) => MapEntry(value.identifier, value)));
       _layoutController!.addAll(items, mountToTop: mountToTop);
-      itemStorageDelegate?._onItemsAdded(items.map((e) => _getItemWithLayout(e.identifier)).toList(), _layoutController!.slotCount);
+
+      // Ne pas appeler le delegate immédiatement si en mode édition
+      if (!isEditing) {
+        itemStorageDelegate?._onItemsAdded(items.map((e) => _getItemWithLayout(e.identifier)).toList(), _layoutController!.slotCount);
+      }
+      // Sinon le delegate sera appelé lors de la confirmation des changements
     } else {
       throw Exception("Not Attached");
     }
@@ -101,9 +114,17 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
   /// Delete an item from Dashboard.
   void delete(String id) {
     if (_isAttached) {
-      itemStorageDelegate?._onItemsDeleted([_getItemWithLayout(id)], _layoutController!.slotCount);
+      // Sauvegarde l'information de l'élément supprimé pour une utilisation ultérieure
+      var deletedItem = _getItemWithLayout(id);
+
       _layoutController!.delete(id);
       _items.remove(id);
+
+      // Ne pas appeler le delegate immédiatement si en mode édition
+      if (!isEditing) {
+        itemStorageDelegate?._onItemsDeleted([deletedItem], _layoutController!.slotCount);
+      }
+      // Sinon le delegate sera appelé lors de la confirmation des changements
     } else {
       throw Exception("Not Attached");
     }
@@ -112,9 +133,17 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
   /// Delete multiple items from Dashboard.
   void deleteAll(List<String> ids) {
     if (_isAttached) {
-      itemStorageDelegate?._onItemsDeleted(ids.map((e) => _getItemWithLayout(e)).toList(), _layoutController!.slotCount);
+      // Sauvegarde l'information des éléments supprimés pour une utilisation ultérieure
+      var deletedItems = ids.map((e) => _getItemWithLayout(e)).toList();
+
       _layoutController!.deleteAll(ids);
       _items.removeWhere((k, v) => ids.contains(k));
+
+      // Ne pas appeler le delegate immédiatement si en mode édition
+      if (!isEditing) {
+        itemStorageDelegate?._onItemsDeleted(deletedItems, _layoutController!.slotCount);
+      }
+      // Sinon le delegate sera appelé lors de la confirmation des changements
     } else {
       throw Exception("Not Attached");
     }
@@ -186,6 +215,20 @@ class DashboardItemController<T extends DashboardItem> with ChangeNotifier {
   void _attach(_DashboardLayoutController layoutController) {
     _layoutController = layoutController;
   }
+
+  /// Exits edit mode, confirming or canceling pending changes
+  ///
+  /// If [confirm] is true, all pending changes are saved
+  /// If [confirm] is false, all pending changes are discarded
+  void exitEditing(bool confirm) {
+    if (_isAttached && isEditing) {
+      if (confirm) {
+        _layoutController!.confirmChanges();
+      } else {
+        _layoutController!.cancelChanges();
+      }
+    }
+  }
 }
 
 ///
@@ -216,18 +259,73 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
 
   late bool scrollToAdded;
 
+  /// Flag indicating if we're in edit mode
   bool _isEditing = false;
 
-  bool get isEditing {
-    return _isEditing;
+  /// Users can only edit the layout when [isEditing] is true.
+  bool get isEditing => _isEditing;
+
+  /// Stores the initial layout state before edit mode starts
+  Map<String, ItemLayout>? _initialLayouts;
+
+  /// Stores the items that existed at the start of edit mode
+  Set<String>? _initialItems;
+
+  /// Tracks items added during edit mode (to remove them if changes are cancelled)
+  final Set<String> _itemsAddedDuringEdit = {};
+
+  /// Tracks items deleted during edit mode (to restore them if changes are cancelled)
+  final Map<String, T> _itemsDeletedDuringEdit = {};
+
+  /// Stores all pending changes during edit mode
+  final Set<String> _pendingChanges = {};
+
+  /// Vérifie s'il y a des modifications en attente
+  bool get hasPendingChanges => _pendingChanges.isNotEmpty || _itemsAddedDuringEdit.isNotEmpty || _itemsDeletedDuringEdit.isNotEmpty;
+
+  /// Starts edit mode and captures the initial state
+  void _startEditing() {
+    if (!_isEditing) {
+      // Capture the initial state of all layouts
+      _initialLayouts = {};
+      _initialItems = {};
+      if (_layouts != null) {
+        for (var entry in _layouts!.entries) {
+          _initialLayouts![entry.key] = entry.value.origin
+              .copyWithStarts(startX: entry.value.origin.startX, startY: entry.value.origin.startY)
+              .copyWithDimension(width: entry.value.origin.width, height: entry.value.origin.height);
+          _initialItems!.add(entry.key);
+        }
+      }
+      _pendingChanges.clear();
+      _itemsAddedDuringEdit.clear();
+      _itemsDeletedDuringEdit.clear();
+      _isEditing = true;
+      notifyListeners();
+    }
   }
 
   set isEditing(bool value) {
     if (value != _isEditing) {
-      // Lorsqu'on sort du mode édition et que removeEmptyRows est activé,
-      // compacter la mise en page en supprimant les lignes vides
-      if (_isEditing && !value && removeEmptyRows) {
-        compactLayout();
+      // Entering edit mode
+      if (value && !_isEditing) {
+        _startEditing();
+      }
+      // Exiting edit mode with confirmation dialog - only trigger once
+      else if (!value && _isEditing) {
+        // If there are pending changes, show confirmation dialog
+        if (_pendingChanges.isNotEmpty) {
+          // This will be handled by the UI layer
+          // We don't actually change _isEditing here
+          notifyListeners();
+          return;
+        }
+        // If no changes, just exit edit mode normally
+        else {
+          if (removeEmptyRows) {
+            compactLayout();
+          }
+        }
       }
 
       _isEditing = value;
@@ -252,36 +350,6 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
 
   void startEdit(String id, bool transform) {
     editSession = _EditSession(layoutController: this, editing: _layouts![id]!, transform: transform);
-  }
-
-  void saveEditSession() {
-    if (editSession == null) return;
-
-    if (editSession!._changes.isNotEmpty) {
-      itemController.itemStorageDelegate?._onItemsUpdated(
-          editSession!._changes
-              .map(
-                (e) => itemController._getItemWithLayout(e),
-              )
-              .toList(),
-          slotCount);
-      for (var i in editSession!._changes) {
-        _layouts![i]!._clearListeners();
-      }
-    }
-
-    if (editSession!.isEqual) {
-      cancelEditSession();
-      editSession = null;
-      notifyListeners();
-    } else {
-      //Notify storage
-      editSession = null;
-
-      // Ne plus appeler compactLayout ici
-
-      notifyListeners();
-    }
   }
 
   /// Removes empty rows from the layout by moving all items up
@@ -367,6 +435,22 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
 
   void deleteAll(List<String> ids) {
     for (var id in ids) {
+      // Si l'élément a été ajouté pendant cette session d'édition,
+      // simplement le retirer du suivi des ajouts plutôt que de
+      // l'ajouter au suivi des suppressions
+      if (_isEditing && _itemsAddedDuringEdit.contains(id)) {
+        _itemsAddedDuringEdit.remove(id);
+      }
+      // Sinon, si c'est un élément qui existait avant l'édition, le suivre comme supprimé
+      else if (_isEditing && _initialItems?.contains(id) == true && !_itemsAddedDuringEdit.contains(id)) {
+        var item = itemController._items[id];
+        if (item != null) {
+          _itemsDeletedDuringEdit[id] = item;
+        }
+      }
+    }
+
+    for (var id in ids) {
       var l = _layouts![id];
       var indexes = getItemIndexes(l!.origin);
       _startsTree.remove(indexes.first);
@@ -382,6 +466,20 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
   }
 
   void delete(String id) {
+    // Si l'élément a été ajouté pendant cette session d'édition,
+    // simplement le retirer du suivi des ajouts plutôt que de
+    // l'ajouter au suivi des suppressions
+    if (_isEditing && _itemsAddedDuringEdit.contains(id)) {
+      _itemsAddedDuringEdit.remove(id);
+    }
+    // Sinon, si c'est un élément qui existait avant l'édition, le suivre comme supprimé
+    else if (_isEditing && _initialItems?.contains(id) == true && !_itemsAddedDuringEdit.contains(id)) {
+      var item = itemController._items[id];
+      if (item != null) {
+        _itemsDeletedDuringEdit[id] = item;
+      }
+    }
+
     var l = _layouts![id];
     var indexes = getItemIndexes(l!.origin);
     _startsTree.remove(indexes.first);
@@ -422,6 +520,12 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
   }) {
     _layouts![item.identifier] = _ItemCurrentLayout(item.layoutData);
     this.mountToTop(item.identifier, mountToTop ? 0 : getIndex([_adjustToPosition(item.layoutData), item.layoutData.startY]));
+
+    // Track items added during edit mode
+    if (_isEditing) {
+      _itemsAddedDuringEdit.add(item.identifier);
+    }
+
     notifyListeners();
 
     // TODO: scroll to item
@@ -453,6 +557,11 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
       int startY = item.layoutData.startY;
 
       this.mountToTop(item.identifier, getIndex([startX, startY]));
+
+      // Track items added during edit mode
+      if (_isEditing) {
+        _itemsAddedDuringEdit.add(item.identifier);
+      }
     }
     notifyListeners();
   }
@@ -847,6 +956,141 @@ class _DashboardLayoutController<T extends DashboardItem> with ChangeNotifier {
 
   ///
   bool _isAttached = false;
+
+  /// Confirms all pending changes and exits edit mode
+  void confirmChanges() {
+    if (_pendingChanges.isNotEmpty || _itemsAddedDuringEdit.isNotEmpty || _itemsDeletedDuringEdit.isNotEmpty) {
+      // Persist all pending changes to storage
+      if (itemController.itemStorageDelegate != null) {
+        // Traiter les changements de position/taille
+        var changedItems = _pendingChanges.where((id) => itemController._items.containsKey(id)).map((e) => itemController._getItemWithLayout(e)).toList();
+
+        if (changedItems.isNotEmpty) {
+          itemController.itemStorageDelegate!._onItemsUpdated(changedItems, slotCount);
+        }
+
+        // Traiter les ajouts d'éléments pendant l'édition
+        if (_itemsAddedDuringEdit.isNotEmpty) {
+          var addedItems =
+              _itemsAddedDuringEdit.where((id) => itemController._items.containsKey(id)).map((id) => itemController._getItemWithLayout(id)).toList();
+
+          if (addedItems.isNotEmpty) {
+            itemController.itemStorageDelegate!._onItemsAdded(addedItems, slotCount);
+          }
+        }
+
+        // Traiter les suppressions d'éléments pendant l'édition
+        if (_itemsDeletedDuringEdit.isNotEmpty) {
+          var deletedItems = _itemsDeletedDuringEdit.values.toList();
+
+          if (deletedItems.isNotEmpty) {
+            itemController.itemStorageDelegate!._onItemsDeleted(deletedItems, slotCount);
+          }
+        }
+
+        // Clear deleted items as they are now confirmed deleted
+        _itemsDeletedDuringEdit.clear();
+        // Clear added items tracking as they are now confirmed
+        _itemsAddedDuringEdit.clear();
+      }
+
+      // Apply compact layout if enabled
+      if (removeEmptyRows) {
+        compactLayout();
+      }
+
+      // Clear state
+      _pendingChanges.clear();
+      _initialLayouts = null;
+      _initialItems = null;
+    }
+
+    _isEditing = false;
+    notifyListeners();
+  }
+
+  /// Cancels all pending changes and reverts to the initial state
+  void cancelChanges() {
+    // If we have initial state saved
+    if (_initialLayouts != null && _initialItems != null) {
+      // Remove items that were added during edit mode
+      for (var id in _itemsAddedDuringEdit) {
+        if (_layouts!.containsKey(id)) {
+          var l = _layouts![id];
+          if (l != null) {
+            var indexes = getItemIndexes(l.origin);
+            _startsTree.remove(indexes.first);
+            _endsTree.remove(indexes.last);
+
+            for (var i in indexes) {
+              _indexesTree.remove(i);
+            }
+
+            _layouts!.remove(id);
+            itemController._items.remove(id);
+          }
+        }
+      }
+
+      // Restore items that were deleted during edit mode
+      for (var entry in _itemsDeletedDuringEdit.entries) {
+        itemController._items[entry.key] = entry.value;
+      }
+
+      // Reset indexes for reindexing
+      _startsTree.clear();
+      _endsTree.clear();
+      _indexesTree.clear();
+
+      // Restore original layouts
+      for (var entry in _initialLayouts!.entries) {
+        var id = entry.key;
+        var originalLayout = entry.value;
+
+        if (itemController._items.containsKey(id)) {
+          // Restore layout for existing items
+          if (_layouts!.containsKey(id)) {
+            _layouts![id]!._height = null;
+            _layouts![id]!._width = null;
+            _layouts![id]!._startX = null;
+            _layouts![id]!._startY = null;
+          } else {
+            // Create layout for restored items
+            _layouts![id] = _ItemCurrentLayout(originalLayout);
+          }
+          _indexItem(originalLayout, id);
+        }
+      }
+
+      // Clear state
+      _pendingChanges.clear();
+      _itemsAddedDuringEdit.clear();
+      _itemsDeletedDuringEdit.clear();
+      _initialLayouts = null;
+      _initialItems = null;
+    }
+
+    _isEditing = false;
+    notifyListeners();
+  }
+
+  void saveEditSession() {
+    if (editSession == null) return;
+
+    if (editSession!._changes.isNotEmpty) {
+      // Instead of immediately updating storage, just mark these items as changed
+      _pendingChanges.addAll(editSession!._changes);
+
+      // Apply changes visually
+      for (var i in editSession!._changes) {
+        _layouts![i]!._clearListeners();
+      }
+    }
+
+    // Simply finish the edit session without triggering confirmation
+    editSession = null;
+    notifyListeners();
+  }
 }
 
 class _OverflowPossibility extends Comparable<_OverflowPossibility> {

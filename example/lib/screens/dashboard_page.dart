@@ -55,6 +55,39 @@ class _DashboardPageState extends State<DashboardPage> {
 
   List<String> d = [];
 
+  // Affiche une boîte de dialogue pour confirmer ou annuler les changements
+  Future<void> _showExitEditingDialog() async {
+    // Si aucune modification en attente, quitter simplement le mode édition
+    if (!itemController.hasPendingChanges) {
+      itemController.exitEditing(true);
+      setState(() {});
+      return;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mode édition'),
+        content: const Text('Voulez-vous sauvegarder les modifications?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler les changements'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sauvegarder'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      itemController.exitEditing(result);
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var w = MediaQuery.of(context).size.width;
@@ -65,7 +98,8 @@ class _DashboardPageState extends State<DashboardPage> {
         : 4;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF4285F4),
+        backgroundColor: itemController.isEditing ? Colors.orange : const Color(0xFF4285F4),
+        title: itemController.isEditing ? const Text('Mode Édition') : null,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -93,12 +127,53 @@ class _DashboardPageState extends State<DashboardPage> {
                 add(context);
               },
               icon: const Icon(Icons.add)),
-          IconButton(
+          if (itemController.isEditing)
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    _showExitEditingDialog();
+                  },
+                  icon: Icon(
+                    Icons.check,
+                    color: itemController.hasPendingChanges ? Colors.green : null,
+                  ),
+                ),
+                if (itemController.hasPendingChanges)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          if (itemController.isEditing)
+            IconButton(
               onPressed: () {
-                itemController.isEditing = !itemController.isEditing;
+                itemController.exitEditing(false);
                 setState(() {});
               },
-              icon: !itemController.isEditing ? const Icon(Icons.edit) : const Icon(Icons.check)),
+              icon: Icon(
+                Icons.close,
+                color: itemController.hasPendingChanges ? Colors.red : null,
+              ),
+            ),
+          if (!itemController.isEditing)
+            IconButton(
+              onPressed: () {
+                itemController.startEditing();
+                setState(() {});
+              },
+              icon: const Icon(Icons.edit),
+            ),
         ],
       ),
       body: SafeArea(

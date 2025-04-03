@@ -202,7 +202,7 @@ class Dashboard<T extends DashboardItem> extends StatefulWidget {
   final TextDirection textDirection;
 
   /// Each item is wrapped by a [Material]. Material's parameters can be
-   
+
   /// specified with [itemStyle].
   ///
   /// Look [Material] documentation for more.
